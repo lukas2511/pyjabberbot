@@ -179,6 +179,45 @@ class JabberBot(object):
         """Send an XMPP message"""
         self.rawsend(msg)
 
+    def send_tune(self, song, debug=False):
+        """Set information about the currently played tune
+
+        Song is a dictionary with keys: file, title, artist, album, pos, track,
+        length, uri. For details see <http://xmpp.org/protocols/tune/>.
+        """
+        NS_TUNE = 'http://jabber.org/protocol/tune'
+        iq = xmpp.Iq(typ='set')
+        iq.setFrom(self.jid)
+        iq.pubsub = iq.addChild('pubsub', namespace=xmpp.NS_PUBSUB)
+        iq.pubsub.publish = iq.pubsub.addChild('publish',
+          attrs={'node': NS_TUNE})
+        iq.pubsub.publish.item = iq.pubsub.publish.addChild('item',
+          attrs={'id': 'current'})
+        tune = iq.pubsub.publish.item.addChild('tune')
+        tune.setNamespace(NS_TUNE)
+
+        title = None
+        if 'title' in song:
+            title = song['title']
+        elif 'file' in song:
+            title = os.path.splitext(os.path.basename(song['file']))[0]
+        if title is not None:
+            tune.addChild('title').addData(title)
+        if 'artist' in song:
+            tune.addChild('artist').addData(song['artist'])
+        if 'album' in song:
+            tune.addChild('source').addData(song['album'])
+        if 'pos' in song and song['pos'] > 0:
+            tune.addChild('track').addData(str(song['pos']))
+        if 'time' in song:
+            tune.addChild('length').addData(str(song['time']))
+        if 'uri' in song:
+            tune.addChild('uri').addData(song['uri'])
+
+        if debug:
+            self.log.info('Sending tune: %s' % iq.__str__().encode('utf8'))
+        self.conn.send(iq)
+
     def send(self, to, text, typ='chat', in_reply_to=None):
         """Sends a message to the specified user or chat"""
         msg = self.build_message(text)
